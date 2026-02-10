@@ -105,6 +105,45 @@ st.markdown(
     f"**Current Regime:** :{regime_color}[{regime}] — {regime_desc}"
 )
 
+# --- Volatility regime range reference ---
+regime_col1, regime_col2, regime_col3, regime_col4 = st.columns(4)
+with regime_col1:
+    st.markdown(
+        '<div style="background-color:#c8e6c9;padding:12px 16px;border-radius:8px;border-left:5px solid #388e3c;">'
+        '<strong style="color:#2e7d32;">Low Volatility</strong><br>'
+        '<span style="font-size:1.3em;font-weight:bold;color:#1b5e20;">0 – 15</span><br>'
+        '<span style="color:#33691e;font-size:0.85em;">Markets calm, low fear</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+with regime_col2:
+    st.markdown(
+        '<div style="background-color:#bbdefb;padding:12px 16px;border-radius:8px;border-left:5px solid #1976d2;">'
+        '<strong style="color:#1565c0;">Normal</strong><br>'
+        '<span style="font-size:1.3em;font-weight:bold;color:#0d47a1;">15 – 20</span><br>'
+        '<span style="color:#0d47a1;font-size:0.85em;">Typical market conditions</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+with regime_col3:
+    st.markdown(
+        '<div style="background-color:#ffe0b2;padding:12px 16px;border-radius:8px;border-left:5px solid #f57c00;">'
+        '<strong style="color:#e65100;">Elevated</strong><br>'
+        '<span style="font-size:1.3em;font-weight:bold;color:#bf360c;">20 – 30</span><br>'
+        '<span style="color:#bf360c;font-size:0.85em;">Uncertainty rising, hedging up</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+with regime_col4:
+    st.markdown(
+        '<div style="background-color:#ffcdd2;padding:12px 16px;border-radius:8px;border-left:5px solid #d32f2f;">'
+        '<strong style="color:#c62828;">High Volatility</strong><br>'
+        '<span style="font-size:1.3em;font-weight:bold;color:#b71c1c;">30+</span><br>'
+        '<span style="color:#b71c1c;font-size:0.85em;">Extreme fear, major turbulence</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
 # --- Main VIX chart ---
 st.markdown("---")
 st.subheader("VIX Index")
@@ -160,11 +199,23 @@ if show_bollinger and "BB_Upper" in vix.columns:
         )
     )
 
-# Volatility regime shading
-fig.add_hrect(y0=0, y1=15, fillcolor="green", opacity=0.04, line_width=0)
-fig.add_hrect(y0=15, y1=20, fillcolor="blue", opacity=0.04, line_width=0)
-fig.add_hrect(y0=20, y1=30, fillcolor="orange", opacity=0.04, line_width=0)
-fig.add_hrect(y0=30, y1=100, fillcolor="red", opacity=0.04, line_width=0)
+# Volatility regime shading with labels
+fig.add_hrect(y0=0, y1=15, fillcolor="green", opacity=0.06, line_width=0,
+              annotation_text="Low (0–15)", annotation_position="top left",
+              annotation=dict(font_size=11, font_color="green"))
+fig.add_hrect(y0=15, y1=20, fillcolor="blue", opacity=0.06, line_width=0,
+              annotation_text="Normal (15–20)", annotation_position="top left",
+              annotation=dict(font_size=11, font_color="blue"))
+fig.add_hrect(y0=20, y1=30, fillcolor="orange", opacity=0.06, line_width=0,
+              annotation_text="Elevated (20–30)", annotation_position="top left",
+              annotation=dict(font_size=11, font_color="orange"))
+fig.add_hrect(y0=30, y1=100, fillcolor="red", opacity=0.06, line_width=0,
+              annotation_text="High (30+)", annotation_position="top left",
+              annotation=dict(font_size=11, font_color="red"))
+
+# Dashed threshold lines at regime boundaries
+for level, color in [(15, "green"), (20, "blue"), (30, "red")]:
+    fig.add_hline(y=level, line_dash="dot", line_color=color, line_width=1, opacity=0.5)
 
 # S&P 500 overlay
 if show_sp500 and not sp500.empty:
@@ -313,6 +364,38 @@ if len(term_data) >= 2:
     st.plotly_chart(fig_term, use_container_width=True)
 else:
     st.warning("Unable to retrieve enough term structure data.")
+
+# --- Regime breakdown ---
+st.markdown("---")
+st.subheader("Time Spent in Each Regime")
+
+total_days = len(vix)
+days_low = int((vix["Close"] < 15).sum())
+days_normal = int(((vix["Close"] >= 15) & (vix["Close"] < 20)).sum())
+days_elevated = int(((vix["Close"] >= 20) & (vix["Close"] < 30)).sum())
+days_high = int((vix["Close"] >= 30).sum())
+
+pct_low = days_low / total_days * 100 if total_days else 0
+pct_normal = days_normal / total_days * 100 if total_days else 0
+pct_elevated = days_elevated / total_days * 100 if total_days else 0
+pct_high = days_high / total_days * 100 if total_days else 0
+
+fig_regime = go.Figure()
+fig_regime.add_trace(go.Bar(
+    x=["Low (0–15)", "Normal (15–20)", "Elevated (20–30)", "High (30+)"],
+    y=[days_low, days_normal, days_elevated, days_high],
+    marker_color=["#4caf50", "#2196f3", "#ff9800", "#f44336"],
+    text=[f"{d} days ({p:.1f}%)" for d, p in
+          [(days_low, pct_low), (days_normal, pct_normal),
+           (days_elevated, pct_elevated), (days_high, pct_high)]],
+    textposition="outside",
+))
+fig_regime.update_layout(
+    yaxis_title="Number of Trading Days",
+    height=320,
+    margin=dict(l=40, r=20, t=20, b=40),
+)
+st.plotly_chart(fig_regime, use_container_width=True)
 
 # --- Statistics table ---
 st.markdown("---")
